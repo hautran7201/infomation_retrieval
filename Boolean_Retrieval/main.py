@@ -1,11 +1,10 @@
 import os
-import shutil
 import nltk
 import pickle
 from datasets import load_dataset, load_from_disk
 from BooleanModel import *
 
-# nltk.download('punkt')
+nltk.download('punkt')
 data_path = 'data'
 
 # === Load dataset ===
@@ -22,8 +21,25 @@ print(f'\nDocuments size: {len(documents)}')
 
 
 # === Load model === 
-model = BooleanModel(documents, save_data_path=data_path, over_write=True)
+model = BooleanModel(documents, save_data_path=data_path, over_write=False)
 print(f'\nVocab size: {len(model.vocab_list)}')
+
+
+# === Infer === 
+query = 'explain python language'
+print('\nstr_query (Document index):', query)
+indices = model.str_query(query)
+print(indices)
+
+query = 'explain | test'
+print('\nlogic_query (Document index):', query)
+indices = model.logic_query(query)
+print(indices)
+
+"""# print documents
+for indice in indices: 
+    print(model.documents[indice])"""
+
 
 # === Save model ===
 with open(os.path.join("saved_model", "model.pkl"), "wb") as f:

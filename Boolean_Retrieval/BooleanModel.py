@@ -1,6 +1,8 @@
 import os
 import json
 import numpy as np
+import re
+from logical_operation import *
 from tqdm.auto import tqdm
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
@@ -32,6 +34,12 @@ class BooleanModel:
         else:
             self.inverted_index = self.__create_inverted_index(documents, inverted_index_path)
 
+        # Logical operations
+        self.operators = {
+            '&': AND,
+            '|': OR,
+            '~': NOT
+        }
 
     def __create_vocabulary(self, documents, save_path):
         print('\nCreate vocabulary')
@@ -69,7 +77,7 @@ class BooleanModel:
 
         return inverted_index
     
-    def query(self, query):
+    def str_query(self, query):
         tokens = self.__preprocess(query)
         inverted_values = []
         for key in tokens:
@@ -78,7 +86,50 @@ class BooleanModel:
 
         try:
             intersection = set.intersection(*inverted_values)
-            docs = [self.documents[idx] for idx in intersection]
-            return docs
+            # docs = [self.documents[idx] for idx in intersection]
+            return intersection
         except:
             return []
+        
+    def __onehot_encoding(self, index_list):
+        if index_list:
+            binary_list = [1 if i in index_list else 0 for i in range(len(self.documents))]
+        else:
+            binary_list = [0] * len(self.documents)
+        return binary_list
+
+    def logic_query(self, text):
+        regex = r'\(+.+?\)+|[\w]+|\S+'
+        result = re.findall(regex, text)
+
+        if len(result) % 2 == 1:        
+            value = result[0]
+            
+            if value[0] == '(' and value[0] == ')':
+                fn_str = self.logic_query(result[0])
+            else:
+                index_list = self.inverted_index.get(value)
+                fn_str = self.__onehot_encoding(index_list)
+
+            for i in range(1, len(result), 2):
+                value = result[i+1]
+                operation = result[i]
+                
+                if value[0] == '(' and value[-1] == ')':
+                    value = value[1:-1]
+                    encoded_value = self.logic_query(value)
+                    fn_str = self.operators[operation]([fn_str, encoded_value])
+                else:
+                    if value[0] == '~':
+                        index_list = self.inverted_index.get(value[0])
+                        operation = value[0]
+                        encoded_value = self.__onehot_encoding(index_list)
+                        neg_encoded_value = self.operators[operation](encoded_value)
+                        fn_str = self.operators[operation]([fn_str, neg_encoded_value])
+                    else:
+                        index_list = self.inverted_index.get(value)
+                        encoded_value = self.__onehot_encoding(index_list)
+                        fn_str = self.operators[operation]([fn_str, encoded_value])
+            
+            indices = [index for index, value in enumerate(fn_str) if value]                    
+            return indices
